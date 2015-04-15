@@ -19,7 +19,6 @@ and observe Optimizely entities.  Out of the the box models provide the followin
 
 - fetch / fetchPage / fetchAll (to REST API)
 - persist / delete (to REST API)
-- createFetchGetter / createFetchPageGetter / createFetchAllGetter
 
 As the entry point for data in and out of the frontend, models provide the canonical reference
 to all entity instances loaded in the front end. Therefore all instances are
@@ -56,92 +55,6 @@ their parent is the Project entity
   * POST `/<parent>/<parentId>/<entity>` - saving a new entity
   * PUT `/<entity>/<entityId>` - updating an entity
   * DELETE `/<entity>/<entityId>`
-
-### Creating the Model
-
-Creat the model in `./models/<model-name>.js`.  The filename should be singular and dash-cased.
-
-```js
-// Audience Model located at `extensions/data/models/audience.js`
-var BaseEntityModel = require('../base-entity-model')
-var fieldTypes = require('../constants/field-types')
-
-class AudienceModel extends BaseEntityModel {
-  // the one method that must be implemented
-  getDefinition() {
-    entity: 'audiences',
-
-    parent: {
-      entity: 'projects',
-      key: 'project_id'
-    },
-
-    // define field types for frotend sorting / filtering
-    fieldTypes: {
-      id: fieldTypes.NUMBER,
-      project_id: fieldTypes.NUMBER,
-      name: fieldTypes.STRING,
-      description: fieldTypes.STRING,
-      last_modified: fieldTypes.STRING,
-      conditions: fieldTypes.ARRAY,
-      segmentation: fieldTypes.BOOLEAN,
-    },
-
-    // if a data transformation is needed before saving implement
-    // a serialize function
-    serialize(data) {
-      if (data.conditions) {
-        data.conditions = JSON.stringify(data.conditions);
-      }
-      return data;
-    },
-
-    // if a data transformation is needed after fetching implement
-    // a deserialize function
-    deserialize(data) {
-      if (data.conditions) {
-        data.conditions = JSON.parse(data.conditions);
-      }
-      return data;
-    }
-  }
-
-  // methods can be extended here and call down to the BaseEntityModel
-  // methods, like `fetchAll()`
-  /**
-   * Fetches all audiences where user_touched == true
-   * @param {Integer} projectId
-   * @return {Deferred}
-   */
-  function fetchSavedAudiences(projectId) {
-    return this.fetchAll({
-      project_id: projectId,
-      user_touched: true,
-    })
-  }
-}
-
-
-// export a new instance of the model (this is treated as a singleton)
-module.exports = new AudienceModel()
-```
-
-To expose the newly created model to other extensions or the sandbox it must be registered in
-`extensions/data/index.js`
-
-- Should be CamelCased and singular
-- Keep in alphabetical order
-
-```js
-// `extensions/data/index.js`
-module.exports = {
-  Audience: require('./models/audience'),
-  // ...
-  Token: require('./models/token'),
-  Variation: require('./models/variation'),
-}
-```
-
 
 ### Model Definition Configuration
 
@@ -229,9 +142,9 @@ deserialize(data) {
 ```
 
 
-## Model API Documentation
+## Entity Actions API Documentation
 
-The following methods are provided to every model via the `BaseEntityModel`
+The following methods are provided to every entity action group via the `RestApi.createEntityActions(entityDef)`
 
 ### save( instance )
 
@@ -245,7 +158,7 @@ Persists an entity instance.
 **returns** *(`Promise`)*
 
 ```js
-sandbox.Audience.save({
+Audience.actions.save({
   id: 123,
   name: "New Audience Name"
 })
@@ -264,7 +177,7 @@ If the same request has been made before this will not make additional calls to 
 **returns** *(`Promise`)*
 
 ```js
-sandbox.Audience.fetch(123)
+Audience.actions.fetch(123)
 ```
 
 ### fetchPage( filters, [ force ] )
@@ -284,7 +197,7 @@ If the same request has been made before this will not make additional calls to 
 **returns** *(`Promise`)*
 
 ```js
-sandbox.Audience.fetchPage({
+Audience.actions.fetchPage({
   user_touched: true,
   $offset: 0,
   $limit: 20,
@@ -306,7 +219,7 @@ If the same request has been made before this will not make additional calls to 
 **returns** *(`Promise`)*
 
 ```js
-sandbox.Audience.fetchAll({
+Audience.actions.fetchAll({
   user_touched: true,
 })
 ```
@@ -322,73 +235,9 @@ Deletes an entity instance.
 **returns** *(`Promise`)*
 
 ```js
-sandbox.Audience.delete(audienceInstance)
+Audience.actions.delete(audienceInstance)
 // or
-sandbox.Audience.delete({
+Audience.actions.delete({
   id: 123,
-})
-```
-
-### createFetchGetter( id )
-
-Creates a Getter corresponding to a `fetch` operation.
-
-**args**
-  1. **id** *(`number` | `object`)*: identifier of entity
-
-**returns** *(`Getter`)*
-
-```js
-sandbox.Audience.fetch(123)
-var audienceGetter = sandbox.Audience.createFetchGetter(123)
-
-// the value wont be available until the data is fetched
-flux.evaluate(audienceGetter)
-
-var unobserve = flux.observe(audienceGetter, aud => {
-  console.log('audience loaded', aud)
-})
-
-// cleans up the event handlers from the `observe` call
-unobserve()
-```
-
-### createFetchPageGetter( filters )
-
-Creates a Getter for the result of a `fetchPage` operation.
-
-Calling `fetchPage` and `createFetchPageGetter` with the same filters will give the same results.
-
-**args**
-  1. **filters** *(`object`)*: map of property => filter value, below are special case filter keys
-    * **$offset** *(`number`)*
-    * **$limit** *(`number`)*
-    * **$order** *(`string` | `array`)*: `'id:desc'` or `['id:desc', 'created:asc']`
-
-**returns** *(`Getter`)*
-
-```js
-var audiencePageGetter = sandbox.Audience.createFetchPageGetter({
-  user_touched: true,
-  $offset: 0,
-  $limit: 20,
-})
-```
-
-### createFetchAllGetter( filters )
-
-Creates a Getter for the result of a `fetchAll` operation
-
-Calling `fetchAll` and `createFetchAllGetter` with the same filters will give the same results.
-
-**args**
-  1. **filters** *(`object`)*: map of property => filter value, below are special case filter keys
-    * **$order** *(`string` | `array`)*: `'id:desc'` or `['id:desc', 'created:asc']`
-
-**returns** *(`Getter`)*
-
-```js
-var audienceGetter = sandbox.Audience.createFetchAllGetter({
-  user_touched: true,
 })
 ```
